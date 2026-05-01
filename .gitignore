@@ -1,3 +1,5 @@
 /data
 /res/
 test.py
+.env
+/neo4j

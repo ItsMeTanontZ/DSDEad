@@ -1,0 +1,12 @@
+pdf2image 
+pillow
+poppler-utils
+beautifulsoup4
+pythainlp
+pandas
+openpyxl
+neo4j 
+langchain 
+langchain-community 
+openai
+python-dotenv
