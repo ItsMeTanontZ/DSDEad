@@ -10,4 +10,9 @@ res/
 └─ เขตเลือกตั้งที่ 10/
 ```
 เขตนี้มีทั้งหมด 470 ไฟล์
- 
+
+ขั้นตอนการใช้
+
+1. pip install -r requirements.txt
+
+2. docker compose up -d --build (to stop use "docker compose down" or "docker compose stop")
