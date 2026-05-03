@@ -1,5 +1,6 @@
 /data
 /res/
-test.py
+test*.py
 .env
 /neo4j
+__pycache__
