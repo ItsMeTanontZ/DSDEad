@@ -10,4 +10,42 @@ res/
 └─ เขตเลือกตั้งที่ 10/
 ```
 เขตนี้มีทั้งหมด 470 ไฟล์
- 
+
+Usage Instructions
+
+  run "docker compose up -d --build"
+  
+  run "pip install -r requirements.txt"
+  
+  then
+  
+  Initialize the database:
+
+  This will create all the necessary tables in your PostgreSQL instance.
+  
+   1 python seed.py --init
+
+  Seed new data:
+
+  First check your .env to have correct path lead to data file it should be a folder before /provinces/
+  
+  Run this whenever you add new CSV files to your directory. It will only process the new ones.
+  
+   1 python seed.py --workers x
+
+  Delete data by filename:
+
+  If you need to remove the data from a specific file (e.g., to re-import it after a correction):
+
+   1 python seed.py --delete "อำเภออมก๋อย_ตำบลนาเกียน_หน่วยที่1_แบบบัญชีรายชื่อ_ผลคะแนน.csv"
+
+  Configuration
+  
+  The script automatically reads your settings from config.py and .env. Ensure your .env contains:
+  
+   * DB_URL: Your PostgreSQL connection string.
+  
+   * DATA_DIR: The path to your res/csv folder.
+
+  Your database is now ready to handle large-scale imports with built-in protection against duplicates and an easy way to manage specific
+  files.
