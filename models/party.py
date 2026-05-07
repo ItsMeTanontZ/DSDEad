@@ -6,7 +6,7 @@ class Party(Base):
     __tablename__ = "Party"
 
     pid = Column(Integer, primary_key=True) #หมายเลขพรรค
-    name = Column(String(60), required=True) # ชื่อพรรค
+    name = Column(String(60), nullable=False) # ชื่อพรรค
     
     def __repr__(self):
         return f"id: {self.pid}, name: {self.name}"

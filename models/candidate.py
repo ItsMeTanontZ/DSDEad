@@ -6,8 +6,8 @@ class Candidate(Base):
     __tablename__ = "Candidate"
 
     cid = Column(UUID, primary_key=True)
-    candidate_number = Column(Integer, required=True) # หมายเลขผู้สมัคร
-    name = Column(String(60), required=True) # ชื่อผู้สมัคร
+    candidate_number = Column(Integer, nullable=False) # หมายเลขผู้สมัคร
+    name = Column(String(60), nullable=False) # ชื่อผู้สมัคร
     party_number = Column(Integer, ForeignKey("Party.pid")) # หมายเลขพรรค(FK)
 
     def __repr__(self):

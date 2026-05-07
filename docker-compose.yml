@@ -7,8 +7,8 @@ services:
     shm_size: 128mb
     environment:
         POSTGRES_PASSWORD: strongpassword
-        POSTGRES_USER: yott
-        POSTGRES_DB: yottdb
+        POSTGRES_USER: dead
+        POSTGRES_DB: deaddb
     ports:
         - 5435:5432
     volumes:
