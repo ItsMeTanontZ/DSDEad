@@ -1,3 +1,8 @@
 /data
 /res/
-test.py
+test*.py
+.venv/
+__pycache__/
+*.pyc
+neo4j/
+.env
