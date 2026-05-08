@@ -13,6 +13,10 @@ res/
 
 Usage Instructions
 
+  create python venv using "python -m venv .venv" then make sure it run on your .venv
+
+  using this command ".venv/Scripts/activate"
+
   run "docker compose up -d --build"
   
   run "pip install -r requirements.txt"
