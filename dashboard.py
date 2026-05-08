@@ -103,7 +103,7 @@ def get_map_data(filters, election_type_filter, map_mode):
     debug_info = {"stage": "init", "count": 0}
     try:
         # 1. Base query
-        if map_mode == "Winner":
+        if map_mode == "พรรคที่ชนะการโหวต":
             if election_type_filter == "แบบบัญชีรายชื่อ":
                 query = session.query(
                     Location.district,
@@ -139,7 +139,7 @@ def get_map_data(filters, election_type_filter, map_mode):
             
             max_votes = results.groupby(['district', 'subdistrict'])['Votes'].transform('max')
             data_df = results[results['Votes'] == max_votes].drop_duplicates(['district', 'subdistrict'])
-            debug_info["winners_count"] = len(data_df)
+            debug_info["พรรคที่ชนะการโหวตs_count"] = len(data_df)
             
         else:
             mode_mapping = {
@@ -177,7 +177,7 @@ def get_map_data(filters, election_type_filter, map_mode):
         map_df = pd.merge(data_df, coords_df, on=['district', 'subdistrict'], how='inner')
         debug_info["merged_count"] = len(map_df)
         
-        if map_mode == "Winner":
+        if map_mode == "พรรคที่ชนะการโหวต":
             map_df['icon_data'] = map_df['Party'].apply(lambda x: get_image_base64(f"{DATAPIC_DIR}/{x}.jpg"))
             # map_df['icon_path'] = map_df['Party'].apply(lambda x: f"{DATAPIC_DIR}/{x}.jpg")
             # map_df['icon_data'] = map_df['icon_path'].apply(get_image_base64)
@@ -199,36 +199,36 @@ def get_map_data(filters, election_type_filter, map_mode):
         session.close()
 
 # UI Layout
-st.title("🗳️ Election Data Insight Dashboard")
+st.title("🗳️ สถิติการเลือกตั้ง")
 
 # Sidebar Filters
-st.sidebar.header("Filters")
+st.sidebar.header("ตัวกรอง")
 selected_filters = {}
 years = get_unique_values("year", {})
-selected_filters["year"] = st.sidebar.multiselect("Year", years)
+selected_filters["year"] = st.sidebar.multiselect("ปี", years, placeholder="เลือก")
 provinces = get_unique_values("province", {"year": selected_filters["year"]})
-selected_filters["province"] = st.sidebar.multiselect("Province", provinces)
+selected_filters["province"] = st.sidebar.multiselect("จังหวัด", provinces, placeholder="เลือก")
 areas = get_unique_values("area", {"year": selected_filters["year"], "province": selected_filters["province"]})
-selected_filters["area"] = st.sidebar.multiselect("Area (Constituency)", areas)
+selected_filters["area"] = st.sidebar.multiselect("เขตเลือกตั้ง", areas, placeholder="เลือก")
 districts = get_unique_values("district", {"year": selected_filters["year"], "province": selected_filters["province"], "area": selected_filters["area"]})
-selected_filters["district"] = st.sidebar.multiselect("District (Amphoe)", districts)
+selected_filters["district"] = st.sidebar.multiselect("อำเภอ", districts, placeholder="เลือก")
 subdistricts = get_unique_values("subdistrict", {"year": selected_filters["year"], "province": selected_filters["province"], "area": selected_filters["area"], "district": selected_filters["district"]})
-selected_filters["subdistrict"] = st.sidebar.multiselect("Subdistrict (Tambon)", subdistricts)
+selected_filters["subdistrict"] = st.sidebar.multiselect("ตำบล (เทศบาล)", subdistricts, placeholder="เลือก")
 units = get_unique_values("unit", {"year": selected_filters["year"], "province": selected_filters["province"], "area": selected_filters["area"], "district": selected_filters["district"], "subdistrict": selected_filters["subdistrict"]})
-selected_filters["unit"] = st.sidebar.multiselect("Unit (Polling Station)", units)
+selected_filters["unit"] = st.sidebar.multiselect("หน่วยเลือกตั้ง", units, placeholder="เลือก")
 
-election_type = st.sidebar.selectbox("Election Type", ["แบบแบ่งเขต", "แบบบัญชีรายชื่อ"])
+election_type = st.sidebar.selectbox("รูปแบบการเลือกตั้ง", ["แบบแบ่งเขต", "แบบบัญชีรายชื่อ"])
 
-st.sidebar.header("Map Settings")
-map_mode = st.sidebar.selectbox("Map Mode", ["Winner", "ผู้มาใช้สิทธิ์", "บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"])
-dot_scale = st.sidebar.slider("Size Multiplier", 1, 100, 20)
+st.sidebar.header("การตั้งค่าแผนที่")
+map_mode = st.sidebar.selectbox("รูปแบบแผนที่", ["พรรคที่ชนะการโหวต", "ผู้มาใช้สิทธิ์", "บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"])
+dot_scale = st.sidebar.slider("ตัวคูณขนาด", 1, 100, 20)
 
 # Fetch Data
 stats, votes_df = get_dashboard_data(selected_filters, election_type)
 
 if stats and stats.total_voters:
     # Row 1: Metrics
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     total_voters = stats.total_voters or 0
     voters_turnout = stats.voters_turnout or 0
     valid_ballots = stats.valid_ballots or 0
@@ -237,21 +237,23 @@ if stats and stats.total_voters:
     turnout_rate = (voters_turnout / total_voters) * 100 if total_voters > 0 else 0
     valid_rate = (valid_ballots / voters_turnout) * 100 if voters_turnout > 0 else 0
     invalid_rate = (invalid_ballots / voters_turnout) * 100 if voters_turnout > 0 else 0
-    col1.metric("Total Voters", f"{total_voters:,}")
-    col2.metric("Turnout Rate", f"{turnout_rate:.2f}%")
-    col3.metric("Valid Ballots", f"{valid_rate:.2f}%")
-    col4.metric("Invalid Ballots", f"{invalid_rate:.2f}%")
+    blank_rate = (blank_ballots / voters_turnout) * 100 if voters_turnout > 0 else 0
+    col1.metric("จำนวนคนที่มีสิทธิ์ใช้เสียง", f"{total_voters:,}")
+    col2.metric("มาใช้เสียงจริง (%)", f"{turnout_rate:.2f}%")
+    col3.metric("บัตรดี/ทั้งหมด (%)", f"{valid_rate:.2f}%")
+    col4.metric("บัตรเสีย/ทั้งหมด (%)", f"{invalid_rate:.2f}%")
+    col5.metric("ไม่ลงคะแนน/ทั้งหมด (%)", f"{blank_rate:.2f}%")
 
     # Row 2: Geographic Visualization
     tab1, tab2 = st.tabs(["แผนที่", "สถิติ"])
 
     with tab1: 
-        st.subheader(f"Map: {map_mode}")
+        st.subheader(f"แผนที่แสดงข้อมูล{map_mode}")
         map_data, debug = get_map_data(selected_filters, election_type, map_mode)
         
         if not map_data.empty:
             try:
-                if map_mode == "Winner":
+                if map_mode == "พรรคที่ชนะการโหวต":
                     map_data["icon"] = map_data["icon_data"].apply(lambda x: {
                         "url": x, "width": 128, "height": 128, "anchorY": 128
                     })
@@ -262,7 +264,7 @@ if stats and stats.total_voters:
                         get_position=["lon", "lat"], 
                         pickable=True,
                     )
-                    tooltip_text = "{subdistrict}\nWinner: {Party}\nVotes: {Votes}"
+                    tooltip_text = "{subdistrict}\nพรรคที่ชนะการโหวต: {Party}\nคะแนน: {Votes}"
                 else:
                     map_data["radius"] = map_data["Value"] * (dot_scale/20)
                     layer = pdk.Layer(
@@ -294,21 +296,24 @@ if stats and stats.total_voters:
             st.info("No map data available. Check the Debug expander below for details.")
         
         # Debug Expander
-        # with st.expander("🔍 Map Data Debugger"):
-        #     st.write("**Data Pipeline Status:**")
-        #     st.json(debug)
-        #     if map_mode == "Winner" and "missing_icons" in debug and debug["missing_icons"]:
-        #         st.warning(f"Failed to find images for: {', '.join(debug['missing_icons'])}")
-        #         st.info(f"Ensure filenames match exactly (including spaces) in `{DATAPIC_DIR}/` with `.jpg` extension.")
+        with st.expander("🔍 Map Data Debugger"):
+            st.write("**Data Pipeline Status:**")
+            st.json(debug)
+            if map_mode == "พรรคที่ชนะการโหวต" and "missing_icons" in debug and debug["missing_icons"]:
+                st.warning(f"Failed to find images for: {', '.join(debug['missing_icons'])}")
+                st.info(f"Ensure filenames match exactly (including spaces) in `{DATAPIC_DIR}/` with `.jpg` extension.")
     with tab2:
         # Row 3: Top 10 Chart
-        st.subheader(f"Top 10 Leaders")
         if not votes_df.empty:
             chart_label = "Party" if election_type == "แบบบัญชีรายชื่อ" else "Candidate"
+            if election_type == "แบบบัญชีรายชื่อ":
+                st.subheader(f"10 อันดับพรรคที่คะแนนมากที่สุด")
+            else:
+                st.subheader(f"10 อันดับ สส ที่คะแนนมากที่สุด")
             top_10 = votes_df.head(10).copy()
             chart = alt.Chart(top_10).mark_bar().encode(
-                y=alt.Y(f"{chart_label}:N", sort="-x", title=chart_label),
-                x=alt.X("Votes:Q", title="Votes Received"),
+                y=alt.Y(f"{chart_label}:N", sort="-x", title=""),
+                x=alt.X("Votes:Q", title="คะแนนที่ได้รับ"),
                 tooltip=[chart_label, "Votes"]
             ).properties(height=300, width="container").configure_axis(labelLimit=500)
             st.altair_chart(chart, use_container_width=True)
@@ -317,29 +322,33 @@ if stats and stats.total_voters:
 
         # Row 4: Ballot Distribution Chart
         st.divider()
-        st.subheader("Ballot Distribution")
+        st.subheader("สถิติการเลือกตั้ง")
         ballot_data = pd.DataFrame({
-            "Type": ["Valid", "Invalid", "Blank"],
+            "Type": ["บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"],
             "Count": [valid_ballots, invalid_ballots, blank_ballots]
         })
         ballot_chart = alt.Chart(ballot_data).mark_bar().encode(
-            y=alt.Y("Type:N", title="Ballot Type"),
-            x=alt.X("Count:Q", title="Count"),
+            y=alt.Y("Type:N", title=""),
+            x=alt.X("Count:Q", title="จำนวน"),
             tooltip=["Type", "Count"]
         ).properties(height=150, width="container")
         st.altair_chart(ballot_chart, use_container_width=True)
 
     # Row 5: Detailed Data
     st.divider()
-    st.subheader("Leaderboard")
+    st.subheader("ตารางแสดงอันดับ")
     if not votes_df.empty:
         votes_df_display = votes_df.copy()
         votes_df_display.index = range(1, len(votes_df_display) + 1)
         st.dataframe(votes_df_display, use_container_width=True)
 
 else:
-    st.warning("No data found for the selected filters.")
+    st.warning("ไม่ค้นพบข้อมูลจากการกรอง")
 
 # Footer
 st.sidebar.markdown("---")
-st.sidebar.info("Data sourced from election database.")
+st.sidebar.info("""ชุดข้อมูลนี้ถูกจัดทำขึ้นผ่านกระบวนการ OCR พร้อมการตรวจสอบความถูกต้องแบบ manual เพื่อเพิ่มความแม่นยำก่อนเผยแพร่ ทั้งนี้ เราไม่มีการแก้ไข ดัดแปลง หรือบิดเบือนข้อมูลการเลือกตั้งไม่ว่ากรณีใด ๆ
+
+โครงการนี้เป็น Final Project ของรายวิชา Data Science and Data Engineering รหัสวิชา 2110446 ไม่มีความเกี่ยวข้องกับธุรกิจ พรรคการเมือง หรือองค์กรภาคประชาชนใด ๆ ทั้งสิ้น
+
+สำหรับผลการเลือกตั้งที่เป็นทางการและมีผลอ้างอิงสูงสุด กรุณาอ้างอิงจากเอกสารต้นฉบับของ กกต. เท่านั้น""")
