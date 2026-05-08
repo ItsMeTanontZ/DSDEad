@@ -8,6 +8,19 @@ class DataProcessor:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
 
+    def _safe_int(self, value):
+        """Safely convert OCR value to integer, handling commas and errors."""
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return 0
+        try:
+            # Remove commas and whitespace
+            clean_val = str(value).replace(",", "").strip()
+            if not clean_val:
+                return 0
+            return int(float(clean_val)) # Handle "1.0" or "10"
+        except (ValueError, TypeError):
+            return 0
+
     def process(self, session, file_path: str, meta: ElectionMetadata, filename: str):
         df = pd.read_csv(file_path, encoding='utf-8-sig')
         location = self.db.get_or_create_location(session, meta)
@@ -22,12 +35,14 @@ class DataProcessor:
         stat = ElectionStatistic(
             location_key=location.lid,
             type=meta.election_type,
-            total_voters=int(data.get('จำนวนผู้มีสิทธิเลือกตั้งตามบัญชีรายชื่อผู้มีสิทธิเลือกตั้ง', 0)),
-            voters_turnout=int(data.get('จำนวนผู้มีสิทธิเลือกตั้งที่มาแสดงตน', 0)),
-            valid_ballots=int(data.get('บัตรดี', 0)),
-            invalid_ballots=int(data.get('บัตรเสีย', 0)),
-            blank_ballots=int(data.get('บัตรที่ไม่เลือกบัญชีรายชื่อของพรรคการเมืองใด', data.get('บัตรที่ไม่เลือกผู้สมัครผู้ใด', 0))),
-            remaining_ballots=int(data.get('บัตรเลือกตั้งที่เหลือ', 0)),
+            total_voters=self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งตามบัญชีรายชื่อผู้มีสิทธิเลือกตั้ง', data.get('จำนวนผู้มีสิทธิเลือกตั้ง', 0))),
+            voters_turnout=self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งที่มาแสดงตน', data.get('จำนวนผู้มาแสดงตน', 0))),
+            valid_ballots=self._safe_int(data.get('บัตรดี', 0)),
+            invalid_ballots=self._safe_int(data.get('บัตรเสีย', 0)),
+            blank_ballots=self._safe_int(data.get('บัตรที่ไม่เลือกบัญชีรายชื่อของพรรคการเมืองใด', 
+                             data.get('บัตรที่ไม่เลือกผู้สมัครผู้ใด', 
+                             data.get('บัตรไม่เลือกใคร', 0)))),
+            remaining_ballots=self._safe_int(data.get('บัตรเลือกตั้งที่เหลือ', data.get('บัตรเหลือ', 0))),
             source_file=filename
         )
         session.add(stat)
@@ -41,50 +56,44 @@ class DataProcessor:
                 self._handle_candidate_score(session, row, location, meta, filename)
 
     def _handle_party_score(self, session, row, location, meta, filename):
-        party_num = int(row['หมายเลข'])
-        party_name = row['ชื่อพรรค']
+        party_num = self._safe_int(row['หมายเลข'])
+        party_name = str(row['ชื่อพรรค']).strip()
         
-        party = session.query(Party).filter(Party.pid == party_num).first()
-        if not party:
-            party = Party(pid=party_num, name=party_name)
-            session.add(party)
-            session.flush()
+        party = self.db.get_or_create_party(session, party_num, party_name)
         
         voted = Voted(
             location_key=location.lid,
             election_type=meta.election_type,
             party_key=party.pid,
-            votes_received=int(row['คะแนน']),
+            votes_received=self._safe_int(row['คะแนน']),
             source_file=filename
         )
         session.add(voted)
 
     def _handle_candidate_score(self, session, row, location, meta, filename):
-        cand_num = int(row['หมายเลข'])
-        cand_name = row['ชื่อผู้สมัคร']
-        party_name = row['พรรค']
+        cand_num = self._safe_int(row['หมายเลข'])
+        cand_name = str(row['ชื่อผู้สมัคร']).strip()
+        party_name = str(row['พรรค']).strip()
         
+        # Try to find party with exact name, then normalized name
         party = session.query(Party).filter(Party.name == party_name).first()
-        candidate = session.query(Candidate).filter(
-            Candidate.name == cand_name, 
-            Candidate.candidate_number == cand_num
-        ).first()
-        
-        if not candidate:
-            candidate = Candidate(
-                cid=uuid.uuid4(),
-                candidate_number=cand_num,
-                name=cand_name,
-                party_number=party.pid if party else None
-            )
-            session.add(candidate)
-            session.flush()
+        if not party:
+            # Normalize: strip "พรรค" and search
+            clean_name = party_name.replace("พรรค", "").strip()
+            party = session.query(Party).filter(Party.name.like(f"%{clean_name}%")).first()
+
+        candidate = self.db.get_or_create_candidate(
+            session, 
+            name=cand_name, 
+            number=cand_num, 
+            party_pid=party.pid if party else None
+        )
         
         voted = Voted(
             location_key=location.lid,
             election_type=meta.election_type,
             candidate_key=candidate.cid,
-            votes_received=int(row['คะแนน']),
+            votes_received=self._safe_int(row['คะแนน']),
             source_file=filename
         )
         session.add(voted)

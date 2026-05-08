@@ -1,3 +1,4 @@
+import threading
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from models import Base, Location, Party, Candidate, ElectionStatistic, Voted, ProcessedFile
@@ -7,6 +8,7 @@ class DatabaseManager:
     def __init__(self, db_url: str):
         self.engine = create_engine(db_url)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        self.lock = threading.Lock()
 
     def init_db(self):
         Base.metadata.create_all(bind=self.engine)
@@ -16,20 +18,73 @@ class DatabaseManager:
 
     def get_or_create_location(self, session, meta: ElectionMetadata):
         lid = f"{meta.year}-{meta.province}-{meta.area}-{meta.district}-{meta.subdistrict}-{meta.unit}"
-        location = session.query(Location).filter(Location.lid == lid).first()
-        if not location:
-            location = Location(
-                lid=lid,
-                year=meta.year,
-                province=meta.province,
-                area=meta.area,
-                district=meta.district,
-                subdistrict=meta.subdistrict,
-                unit=meta.unit
-            )
-            session.add(location)
-            session.flush()
-        return location
+        
+        with self.lock:
+            location = session.query(Location).filter(Location.lid == lid).first()
+            if not location:
+                # Use a savepoint to handle potential collisions without breaking the main transaction
+                sp = session.begin_nested()
+                try:
+                    location = Location(
+                        lid=lid,
+                        year=meta.year,
+                        province=meta.province,
+                        area=meta.area,
+                        district=meta.district,
+                        subdistrict=meta.subdistrict,
+                        unit=meta.unit
+                    )
+                    session.add(location)
+                    session.flush()
+                except Exception:
+                    sp.rollback()
+                    location = session.query(Location).filter(Location.lid == lid).first()
+            return location
+
+    def get_or_create_party(self, session, pid: int, name: str):
+        with self.lock:
+            party = session.query(Party).filter(Party.pid == pid).first()
+            if not party:
+                sp = session.begin_nested()
+                try:
+                    party = Party(pid=pid, name=name)
+                    session.add(party)
+                    session.flush()
+                except Exception:
+                    sp.rollback()
+                    party = session.query(Party).filter(Party.pid == pid).first()
+            return party
+
+    def get_or_create_candidate(self, session, name: str, number: int, party_pid: int = None):
+        with self.lock:
+            candidate = session.query(Candidate).filter(
+                Candidate.name == name, 
+                Candidate.candidate_number == number
+            ).first()
+            
+            if not candidate:
+                import uuid
+                sp = session.begin_nested()
+                try:
+                    candidate = Candidate(
+                        cid=uuid.uuid4(),
+                        candidate_number=number,
+                        name=name,
+                        party_number=party_pid
+                    )
+                    session.add(candidate)
+                    session.flush()
+                except Exception:
+                    sp.rollback()
+                    candidate = session.query(Candidate).filter(
+                        Candidate.name == name, 
+                        Candidate.candidate_number == number
+                    ).first()
+            elif candidate.party_number is None and party_pid is not None:
+                candidate.party_number = party_pid
+                session.flush()
+            
+            return candidate
 
     def is_file_processed(self, session, filename: str):
         return session.query(ProcessedFile).filter(ProcessedFile.filename == filename).first() is not None
