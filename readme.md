@@ -3,12 +3,16 @@
 1. Download the data from this Google Drive folder:
 	https://drive.google.com/drive/folders/1koDp6abqLT2f-DARW--qWqO2onlTCWIy
 
-2. Extract the downloaded files so the directory structure looks like this:
+2. Extract the downloaded files so the directory structure looks something like this:
 
 ```text
 res/
+└─ เขตเลือกตั้งที่ 9/
 └─ เขตเลือกตั้งที่ 10/
 ```
+
+3. Here are the files that were processed by OCR and physical checking: https://drive.google.com/drive/u/1/folders/1IULVfLQ8wRmJnx-fI3V9O9B4Yyvjiymm
+
 เขตนี้มีทั้งหมด 470 ไฟล์
 
 Usage Instructions
