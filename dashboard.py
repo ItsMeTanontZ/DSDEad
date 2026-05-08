@@ -4,6 +4,7 @@ import pandas as pd
 import altair as alt
 import pydeck as pdk
 from sqlalchemy import create_engine, func
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 from config import DB_URL
 from models import Location, Party, Candidate, ElectionStatistic, Voted
@@ -300,48 +301,54 @@ st.sidebar.header("Filters")
 
 selected_filters = {}
 
-# Cascading Filters
-years = get_unique_values("year", {})
-selected_filters["year"] = st.sidebar.multiselect("Year", years)
+try:
+    # Cascading Filters
+    years = get_unique_values("year", {})
+    selected_filters["year"] = st.sidebar.multiselect("Year", years)
 
-provinces = get_unique_values("province", {"year": selected_filters["year"]})
-selected_filters["province"] = st.sidebar.multiselect("Province", provinces)
+    provinces = get_unique_values("province", {"year": selected_filters["year"]})
+    selected_filters["province"] = st.sidebar.multiselect("Province", provinces)
 
-areas = get_unique_values("area", {
-    "year": selected_filters["year"], 
-    "province": selected_filters["province"]
-})
-selected_filters["area"] = st.sidebar.multiselect("Area (Constituency)", areas)
+    areas = get_unique_values("area", {
+        "year": selected_filters["year"], 
+        "province": selected_filters["province"]
+    })
+    selected_filters["area"] = st.sidebar.multiselect("Area (Constituency)", areas)
 
-districts = get_unique_values("district", {
-    "year": selected_filters["year"], 
-    "province": selected_filters["province"],
-    "area": selected_filters["area"]
-})
-selected_filters["district"] = st.sidebar.multiselect("District (Amphoe)", districts)
+    districts = get_unique_values("district", {
+        "year": selected_filters["year"], 
+        "province": selected_filters["province"],
+        "area": selected_filters["area"]
+    })
+    selected_filters["district"] = st.sidebar.multiselect("District (Amphoe)", districts)
 
-subdistricts = get_unique_values("subdistrict", {
-    "year": selected_filters["year"], 
-    "province": selected_filters["province"],
-    "area": selected_filters["area"],
-    "district": selected_filters["district"]
-})
-selected_filters["subdistrict"] = st.sidebar.multiselect("Subdistrict (Tambon)", subdistricts)
+    subdistricts = get_unique_values("subdistrict", {
+        "year": selected_filters["year"], 
+        "province": selected_filters["province"],
+        "area": selected_filters["area"],
+        "district": selected_filters["district"]
+    })
+    selected_filters["subdistrict"] = st.sidebar.multiselect("Subdistrict (Tambon)", subdistricts)
 
-units = get_unique_values("unit", {
-    "year": selected_filters["year"], 
-    "province": selected_filters["province"],
-    "area": selected_filters["area"],
-    "district": selected_filters["district"],
-    "subdistrict": selected_filters["subdistrict"]
-})
-selected_filters["unit"] = st.sidebar.multiselect("Unit (Polling Station)", units)
+    units = get_unique_values("unit", {
+        "year": selected_filters["year"], 
+        "province": selected_filters["province"],
+        "area": selected_filters["area"],
+        "district": selected_filters["district"],
+        "subdistrict": selected_filters["subdistrict"]
+    })
+    selected_filters["unit"] = st.sidebar.multiselect("Unit (Polling Station)", units)
 
-election_type = st.sidebar.selectbox("Election Type", ELECTION_TYPES, index=ELECTION_TYPES.index(DEFAULT_ELECTION_TYPE))
-dot_radius = st.sidebar.slider("Dot Radius", min_value=5, max_value=50, value=10, step=1)
+    election_type = st.sidebar.selectbox("Election Type", ELECTION_TYPES, index=ELECTION_TYPES.index(DEFAULT_ELECTION_TYPE))
+    dot_radius = st.sidebar.slider("Dot Radius", min_value=5, max_value=50, value=15, step=1)
 
-# Fetch Data
-stats, votes_df = get_dashboard_data(selected_filters, election_type)
+    # Fetch Data
+    stats, votes_df = get_dashboard_data(selected_filters, election_type)
+
+except SQLAlchemyError:
+    st.info("Database connection is unavailable right now. Please start the database and reload the app.")
+    st.sidebar.info("Data source unavailable.")
+    st.stop()
 
 if stats and stats.total_voters:
     # Row 1: Metrics
@@ -371,6 +378,7 @@ if stats and stats.total_voters:
         coordinates_df = load_coordinates()
         subdistrict_stats = get_subdistrict_stats(selected_filters, election_type)
         map_obj = create_map(coordinates_df, subdistrict_stats, selected_filters, election_type, dot_radius)
+        
         st.pydeck_chart(map_obj)
 
     with tab2:
