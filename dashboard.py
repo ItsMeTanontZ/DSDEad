@@ -322,17 +322,20 @@ if stats and stats.total_voters:
 
         # Row 4: Ballot Distribution Chart
         st.divider()
-        st.subheader("สถิติการเลือกตั้ง")
-        ballot_data = pd.DataFrame({
-            "Type": ["บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"],
-            "Count": [valid_ballots, invalid_ballots, blank_ballots]
-        })
-        ballot_chart = alt.Chart(ballot_data).mark_bar().encode(
-            y=alt.Y("Type:N", title=""),
-            x=alt.X("Count:Q", title="จำนวน"),
-            tooltip=["Type", "Count"]
-        ).properties(height=150, width="container")
-        st.altair_chart(ballot_chart, use_container_width=True)
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.subheader("สถิติการเลือกตั้ง")
+            ballot_data = pd.DataFrame({
+                "Type": ["บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"],
+                "Count": [valid_ballots, invalid_ballots, blank_ballots]
+            })
+            ballot_chart = alt.Chart(ballot_data).mark_arc().encode(
+                theta=alt.Theta("Count:Q", title="จำนวน"),
+                color=alt.Color("Type:N", title="ประเภทบัตร"),
+                tooltip=["Type", "Count"]
+            ).properties(height=300, width="container")
+            st.altair_chart(ballot_chart, use_container_width=True)
 
     # Row 5: Detailed Data
     st.divider()
