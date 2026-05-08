@@ -296,12 +296,12 @@ if stats and stats.total_voters:
             st.info("No map data available. Check the Debug expander below for details.")
         
         # Debug Expander
-        with st.expander("🔍 Map Data Debugger"):
-            st.write("**Data Pipeline Status:**")
-            st.json(debug)
-            if map_mode == "พรรคที่ชนะการโหวต" and "missing_icons" in debug and debug["missing_icons"]:
-                st.warning(f"Failed to find images for: {', '.join(debug['missing_icons'])}")
-                st.info(f"Ensure filenames match exactly (including spaces) in `{DATAPIC_DIR}/` with `.jpg` extension.")
+        # with st.expander("🔍 Map Data Debugger"):
+        #     st.write("**Data Pipeline Status:**")
+        #     st.json(debug)
+        #     if map_mode == "พรรคที่ชนะการโหวต" and "missing_icons" in debug and debug["missing_icons"]:
+        #         st.warning(f"Failed to find images for: {', '.join(debug['missing_icons'])}")
+        #         st.info(f"Ensure filenames match exactly (including spaces) in `{DATAPIC_DIR}/` with `.jpg` extension.")
     with tab2:
         # Row 3: Top 10 Chart
         if not votes_df.empty:
