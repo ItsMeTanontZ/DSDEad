@@ -178,31 +178,66 @@ def get_map_data(filters, election_type_filter, map_mode):
             )
 
         else:
-            mode_mapping = {
-                "ผู้มาใช้สิทธิ์": "voters_turnout",
-                "บัตรดี": "valid_ballots",
-                "บัตรเสีย": "invalid_ballots",
-                "ไม่ลงคะแนน": "blank_ballots"
-            }
-            col_name = mode_mapping.get(map_mode)
-            query = session.query(
-                Location.district,
-                Location.subdistrict,
-                func.sum(getattr(ElectionStatistic, col_name)).label("Value")
-            ).join(Location, ElectionStatistic.location_key == Location.lid)
-            for key, values in filters.items():
-                if values:
-                    query = query.filter(getattr(Location, key).in_(values))
-            query = query.filter(ElectionStatistic.type == election_type_filter)
-            query = query.group_by(Location.district, Location.subdistrict)
-            
-            data_df = pd.DataFrame(query.all())
-            debug_info["raw_query_count"] = len(data_df)
-            if data_df.empty: return pd.DataFrame(), debug_info
-            
-            data_df['Value'] = pd.to_numeric(data_df['Value'], errors='coerce').fillna(0)
-            data_df['district'] = data_df['district'].str.strip()
-            data_df['subdistrict'] = data_df['subdistrict'].str.strip()
+            # For certain map modes, compute percentages instead of raw counts
+            percent_modes = ["ผู้มาใช้สิทธิ์", "บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"]
+            if map_mode in percent_modes:
+                if map_mode == "ผู้มาใช้สิทธิ์":
+                    num_col = ElectionStatistic.voters_turnout
+                    den_col = ElectionStatistic.total_voters
+                else:
+                    mapping = {"บัตรดี": "valid_ballots", "บัตรเสีย": "invalid_ballots", "ไม่ลงคะแนน": "blank_ballots"}
+                    num_col = getattr(ElectionStatistic, mapping[map_mode])
+                    den_col = ElectionStatistic.voters_turnout
+
+                query = session.query(
+                    Location.district,
+                    Location.subdistrict,
+                    func.sum(num_col).label("num"),
+                    func.sum(den_col).label("den")
+                ).join(Location, ElectionStatistic.location_key == Location.lid)
+
+                for key, values in filters.items():
+                    if values:
+                        query = query.filter(getattr(Location, key).in_(values))
+                query = query.filter(ElectionStatistic.type == election_type_filter)
+                query = query.group_by(Location.district, Location.subdistrict)
+
+                data_df = pd.DataFrame(query.all())
+                debug_info["raw_query_count"] = len(data_df)
+                if data_df.empty: return pd.DataFrame(), debug_info
+
+                data_df['num'] = pd.to_numeric(data_df['num'], errors='coerce').fillna(0)
+                data_df['den'] = pd.to_numeric(data_df['den'], errors='coerce').fillna(0)
+                data_df['Value'] = data_df.apply(lambda r: (r['num'] / r['den'] * 100) if r['den'] > 0 else 0, axis=1)
+                data_df['Value'] = data_df['Value'].round(2)
+                data_df['district'] = data_df['district'].astype(str).str.strip()
+                data_df['subdistrict'] = data_df['subdistrict'].astype(str).str.strip()
+            else:
+                mode_mapping = {
+                    "ผู้มาใช้สิทธิ์": "voters_turnout",
+                    "บัตรดี": "valid_ballots",
+                    "บัตรเสีย": "invalid_ballots",
+                    "ไม่ลงคะแนน": "blank_ballots"
+                }
+                col_name = mode_mapping.get(map_mode)
+                query = session.query(
+                    Location.district,
+                    Location.subdistrict,
+                    func.sum(getattr(ElectionStatistic, col_name)).label("Value")
+                ).join(Location, ElectionStatistic.location_key == Location.lid)
+                for key, values in filters.items():
+                    if values:
+                        query = query.filter(getattr(Location, key).in_(values))
+                query = query.filter(ElectionStatistic.type == election_type_filter)
+                query = query.group_by(Location.district, Location.subdistrict)
+                
+                data_df = pd.DataFrame(query.all())
+                debug_info["raw_query_count"] = len(data_df)
+                if data_df.empty: return pd.DataFrame(), debug_info
+                
+                data_df['Value'] = pd.to_numeric(data_df['Value'], errors='coerce').fillna(0)
+                data_df['district'] = data_df['district'].str.strip()
+                data_df['subdistrict'] = data_df['subdistrict'].str.strip()
 
         # 2. Join with Coordinates
         coords_df = pd.read_excel('พิกัดของแต่ละพื้นที่.xlsx')
@@ -611,18 +646,33 @@ if stats:
                         )
                         tooltip_text = "{subdistrict}\nเตรียมบัตรไว้: {prepared_ballots}\nผู้มีสิทธิ์เลือกตั้ง: {total_voters}\n{OutcomeText} ใบ"
                     else:
-                        map_data["radius"] = map_data["Value"] * (dot_scale/20)
-                        layer = pdk.Layer(
-                            "ScatterplotLayer",
-                            map_data,
-                            get_position=["lon", "lat"],
-                            get_radius="radius",
-                            radius_min_pixels=3,
-                            radius_max_pixels=100,
-                            get_fill_color=[255, 0, 0, 160] if map_mode == "บัตรเสีย" else [0, 128, 255, 160],
-                            pickable=True,
-                        )
-                        tooltip_text = "{subdistrict}\n{Value} counts"
+                        # If Value is a percentage for certain modes, scale radius accordingly
+                        if map_mode in ["ผู้มาใช้สิทธิ์", "บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"]:
+                            map_data["radius"] = (map_data["Value"] / 10.0) * (dot_scale * 50)
+                            layer = pdk.Layer(
+                                "ScatterplotLayer",
+                                map_data,
+                                get_position=["lon", "lat"],
+                                get_radius="radius",
+                                radius_min_pixels=3,
+                                radius_max_pixels=100,
+                                get_fill_color=[255, 0, 0, 160] if map_mode == "บัตรเสีย" else [0, 128, 255, 160],
+                                pickable=True,
+                            )
+                            tooltip_text = "{subdistrict}\n{Value}%"
+                        else:
+                            map_data["radius"] = map_data["Value"] * (dot_scale/20)
+                            layer = pdk.Layer(
+                                "ScatterplotLayer",
+                                map_data,
+                                get_position=["lon", "lat"],
+                                get_radius="radius",
+                                radius_min_pixels=3,
+                                radius_max_pixels=100,
+                                get_fill_color=[255, 0, 0, 160] if map_mode == "บัตรเสีย" else [0, 128, 255, 160],
+                                pickable=True,
+                            )
+                            tooltip_text = "{subdistrict}\n{Value} counts"
 
                     view_state = pdk.ViewState(
                         latitude=map_data["lat"].mean(),
@@ -798,18 +848,33 @@ if stats:
                         )
                         tooltip_text = "{subdistrict}\nเตรียมบัตรไว้: {prepared_ballots}\nผู้มีสิทธิ์เลือกตั้ง: {total_voters}\n{OutcomeText} ใบ"
                     else:
-                        map_data["radius"] = map_data["Value"] * (dot_scale/20)
-                        layer = pdk.Layer(
-                            "ScatterplotLayer",
-                            map_data,
-                            get_position=["lon", "lat"],
-                            get_radius="radius",
-                            radius_min_pixels=3,
-                            radius_max_pixels=100,
-                            get_fill_color=[255, 0, 0, 160] if map_mode == "บัตรเสีย" else [0, 128, 255, 160],
-                            pickable=True,
-                        )
-                        tooltip_text = "{subdistrict}\n{Value} counts"
+                        # If Value is a percentage for certain modes, scale radius accordingly
+                        if map_mode in ["ผู้มาใช้สิทธิ์", "บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"]:
+                            map_data["radius"] = (map_data["Value"] / 10.0) * (dot_scale * 50)
+                            layer = pdk.Layer(
+                                "ScatterplotLayer",
+                                map_data,
+                                get_position=["lon", "lat"],
+                                get_radius="radius",
+                                radius_min_pixels=3,
+                                radius_max_pixels=100,
+                                get_fill_color=[255, 0, 0, 160] if map_mode == "บัตรเสีย" else [0, 128, 255, 160],
+                                pickable=True,
+                            )
+                            tooltip_text = "{subdistrict}\n{Value}%"
+                        else:
+                            map_data["radius"] = map_data["Value"] * (dot_scale/10)
+                            layer = pdk.Layer(
+                                "ScatterplotLayer",
+                                map_data,
+                                get_position=["lon", "lat"],
+                                get_radius="radius",
+                                radius_min_pixels=3,
+                                radius_max_pixels=100,
+                                get_fill_color=[255, 0, 0, 160] if map_mode == "บัตรเสีย" else [0, 128, 255, 160],
+                                pickable=True,
+                            )
+                            tooltip_text = "{subdistrict}\n{Value} counts"
 
                     view_state = pdk.ViewState(
                         latitude=map_data["lat"].mean(),
