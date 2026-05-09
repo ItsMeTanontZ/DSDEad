@@ -489,12 +489,12 @@ if stats:
     blank_rate = (blank_ballots / voters_turnout) * 100 if voters_turnout > 0 else 0
     sum_turnout = valid_ballots + invalid_ballots + blank_ballots
     sum_rate = valid_rate + invalid_rate + blank_rate
-    col1.metric("จำนวนคนที่มีสิทธิ์ใช้เสียง", f"{total_voters:,}")
-    col2.metric("มาใช้เสียงจริง (%)", f"{turnout_rate:.2f}%", help=f"{voters_turnout} คน จากทั้งหมด {total_voters} คน")
-    col3.metric("บัตรดี/ทั้งหมด (%)", f"{valid_rate:.2f}%", help=f"{valid_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ")
-    col4.metric("บัตรเสีย/ทั้งหมด (%)", f"{invalid_rate:.2f}%", help=f"{invalid_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ")
-    col5.metric("ไม่ลงคะแนน/ทั้งหมด (%)", f"{blank_rate:.2f}%", help=f"{blank_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ")
-    col6.metric("ผลรวม (สำหรับ recheck)", f"{sum_rate:.2f}%", help=f"{sum_turnout} ใบ จากทั้งหมด {voters_turnout} ใบ")
+    col1.metric("จำนวนคนที่มีสิทธิ์ใช้เสียง", f"{total_voters:,}", border=True)
+    col2.metric("มาใช้เสียงจริง (%)", f"{turnout_rate:.2f}%", help=f"{voters_turnout} คน จากทั้งหมด {total_voters} คน", border=True)
+    col3.metric("บัตรดี/ทั้งหมด (%)", f"{valid_rate:.2f}%", help=f"{valid_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ", border=True)
+    col4.metric("บัตรเสีย/ทั้งหมด (%)", f"{invalid_rate:.2f}%", help=f"{invalid_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ", border=True)
+    col5.metric("ไม่ลงคะแนน/ทั้งหมด (%)", f"{blank_rate:.2f}%", help=f"{blank_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ", border=True)
+    col6.metric("ผลรวม (สำหรับ recheck)", f"{sum_rate:.2f}%", help=f"{sum_turnout} ใบ จากทั้งหมด {voters_turnout} ใบ", border=True)
 
     # Row 2: Geographic Visualization
     # Row 2: Geographic Visualization
