@@ -39,7 +39,9 @@ Usage Instructions
   
   Run this whenever you add new CSV files to your directory. It will only process the new ones.
   
-   1 python seed.py --workers x
+   1 python seed.py --workers 1
+
+  !!!only use --workers 1 if you put more than that it will freeze idk why I'm so sorry TT!!! 
 
   Delete data by filename:
 
