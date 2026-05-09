@@ -33,12 +33,12 @@ class DataProcessor:
     def _process_check(self, session, df, meta, location, filename, location_type):
         data = dict(zip(df['รายการ'], df['ตัวเลข']))
         if location_type:
-            voter_turnout = self._safe_int(data.get('บัตรดี', 0)) + self._safe_int(data.get('บัตรเสีย', 0)) + self._safe_int(data.get('บัตรที่ไม่เลือกบัญชีรายชื่อของพรรคการเมืองใด', 
-                             data.get('บัตรที่ไม่เลือกผู้สมัครผู้ใด', 
-                             data.get('บัตรไม่เลือกใคร', 0))))
+            voter_turnout = self._safe_int(data.get('บัตรเลือกตั้งที่ใช้', 0))
             total_voters = voter_turnout
         else:
-            voter_turnout = self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งที่มาแสดงตน', data.get('จำนวนผู้มาแสดงตน', 0))),
+            voter_turnout = self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งที่มาแสดงตน', data.get('จำนวนผู้มาแสดงตน', 0)))
+            if voter_turnout == 0:
+                voter_turnout = self._safe_int(data.get('บัตรเลือกตั้งที่ใช้', 0))
             total_voters = self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งตามบัญชีรายชื่อผู้มีสิทธิเลือกตั้ง', data.get('จำนวนผู้มีสิทธิเลือกตั้ง', 0)))
         stat = ElectionStatistic(
             location_key=location.lid,

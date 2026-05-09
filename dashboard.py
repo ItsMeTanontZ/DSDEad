@@ -325,6 +325,64 @@ def get_unit_counts_by_subdistrict(filters, election_type_filter):
     finally:
         session.close()
 
+
+@st.cache_data
+def get_scores_vs_valid_by_level(filters, election_type_filter, level):
+    session = get_session()
+    try:
+        if level not in ["district", "subdistrict", "unit"]:
+            return pd.DataFrame()
+
+        # Scores (sum of Voted.votes_received) grouped by level
+        scores_q = session.query(
+            getattr(Location, level).label(level),
+            func.sum(Voted.votes_received).label("sum_scores")
+        ).join(Location, Voted.location_key == Location.lid)
+
+        for key, values in filters.items():
+            if values:
+                scores_q = scores_q.filter(getattr(Location, key).in_(values))
+
+        scores_q = scores_q.filter(Voted.election_type == election_type_filter)
+        scores_q = scores_q.group_by(getattr(Location, level))
+
+        scores_df = pd.DataFrame(scores_q.all())
+
+        # Valid ballots grouped by level
+        valid_q = session.query(
+            getattr(Location, level).label(level),
+            func.sum(ElectionStatistic.valid_ballots).label("valid_ballots")
+        ).select_from(ElectionStatistic).join(Location, ElectionStatistic.location_key == Location.lid)
+
+        for key, values in filters.items():
+            if values:
+                valid_q = valid_q.filter(getattr(Location, key).in_(values))
+
+        valid_q = valid_q.filter(ElectionStatistic.type == election_type_filter)
+        valid_q = valid_q.group_by(getattr(Location, level))
+
+        valid_df = pd.DataFrame(valid_q.all())
+
+        if valid_df.empty and scores_df.empty:
+            return pd.DataFrame()
+
+        if valid_df.empty:
+            valid_df = pd.DataFrame([{level: None, "valid_ballots": 0}])
+        if scores_df.empty:
+            scores_df = pd.DataFrame([{level: None, "sum_scores": 0}])
+
+        merged = pd.merge(valid_df, scores_df, on=level, how="outer")
+        merged[level] = merged[level].astype(str).str.strip()
+        merged["valid_ballots"] = pd.to_numeric(merged["valid_ballots"], errors="coerce").fillna(0)
+        merged["sum_scores"] = pd.to_numeric(merged["sum_scores"], errors="coerce").fillna(0)
+        merged["diff"] = merged["sum_scores"] - merged["valid_ballots"]
+        merged["percent"] = merged.apply(lambda r: (r["sum_scores"] / r["valid_ballots"] * 100) if r["valid_ballots"] > 0 else None, axis=1)
+        merged["percent"] = merged["percent"].round(2)
+        merged = merged.sort_values(by=["percent"], ascending=False)
+        return merged
+    finally:
+        session.close()
+
 # UI Layout
 st.title("🗳️ สถิติการเลือกตั้ง")
 
@@ -419,7 +477,7 @@ stats, votes_df = get_dashboard_data(selected_filters, election_type)
 
 if stats:
     # Row 1: Metrics
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     total_voters = stats.total_voters or 0
     voters_turnout = stats.voters_turnout or 0
     valid_ballots = stats.valid_ballots or 0
@@ -429,11 +487,14 @@ if stats:
     valid_rate = (valid_ballots / voters_turnout) * 100 if voters_turnout > 0 else 0
     invalid_rate = (invalid_ballots / voters_turnout) * 100 if voters_turnout > 0 else 0
     blank_rate = (blank_ballots / voters_turnout) * 100 if voters_turnout > 0 else 0
+    sum_turnout = valid_ballots + invalid_ballots + blank_ballots
+    sum_rate = valid_rate + invalid_rate + blank_rate
     col1.metric("จำนวนคนที่มีสิทธิ์ใช้เสียง", f"{total_voters:,}")
     col2.metric("มาใช้เสียงจริง (%)", f"{turnout_rate:.2f}%", help=f"{voters_turnout} คน จากทั้งหมด {total_voters} คน")
     col3.metric("บัตรดี/ทั้งหมด (%)", f"{valid_rate:.2f}%", help=f"{valid_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ")
     col4.metric("บัตรเสีย/ทั้งหมด (%)", f"{invalid_rate:.2f}%", help=f"{invalid_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ")
     col5.metric("ไม่ลงคะแนน/ทั้งหมด (%)", f"{blank_rate:.2f}%", help=f"{blank_ballots} ใบ จากทั้งหมด {voters_turnout} ใบ")
+    col6.metric("ผลรวม (สำหรับ recheck)", f"{sum_rate:.2f}%", help=f"{sum_turnout} ใบ จากทั้งหมด {voters_turnout} ใบ")
 
     # Row 2: Geographic Visualization
     # Row 2: Geographic Visualization
@@ -499,6 +560,15 @@ if stats:
                     st.altair_chart(chart, use_container_width=True)
                 else:
                     st.info("ไม่พบข้อมูลบัตรไม่ลงคะแนนจากที่กรอง")
+            # Comparison: valid_ballots vs sum of reported scores (votes)
+            st.subheader("เปรียบเทียบ: บัตรดีกับผลรวมคะแนน")
+            sum_scores = votes_df['Votes'].sum() if (not votes_df.empty) else 0
+            diff = sum_scores - valid_ballots
+            percent = (sum_scores / valid_ballots * 100) if valid_ballots > 0 else None
+            c1, c2, c3 = st.columns(3)
+            c1.metric("บัตรดี", f"{valid_ballots:,}")
+            c2.metric("ผลรวมคะแนน", f"{int(sum_scores):,}", f"{int(diff):,}")
+            c3.metric("% (คะแนน / บัตรดี)", f"{percent:.2f}%" if percent is not None else "N/A")
     elif location_type_opt == "ในเขต":
         tab1, tab2 = st.tabs(["แผนที่", "สถิติ"])
 
@@ -676,6 +746,15 @@ if stats:
                     st.altair_chart(chart, use_container_width=True)
                 else:
                     st.info("ไม่พบข้อมูลผู้ไม่มาใช้เสียงจากที่กรอง")    
+            # Comparison: valid_ballots vs sum of reported scores (votes)
+            st.subheader("เปรียบเทียบ: บัตรดีกับผลรวมคะแนน")
+            sum_scores = votes_df['Votes'].sum() if (not votes_df.empty) else 0
+            diff = sum_scores - valid_ballots
+            percent = (sum_scores / valid_ballots * 100) if valid_ballots > 0 else None
+            c1, c2, c3 = st.columns(3)
+            c1.metric("บัตรดี", f"{valid_ballots:,}")
+            c2.metric("ผลรวมคะแนน", f"{int(sum_scores):,}", f"{int(diff):,}")
+            c3.metric("% (คะแนน / บัตรดี)", f"{percent:.2f}%" if percent is not None else "N/A")
         st.sidebar.markdown("---")
     else:
         tab1, tab2 = st.tabs(["แผนที่", "สถิติ"])
@@ -778,6 +857,16 @@ if stats:
                 tooltip=["Type", "Count"]
             ).properties(height=300, width="container")
             st.altair_chart(ballot_chart, use_container_width=True)
+        # Comparison: valid_ballots vs sum of reported scores (votes)
+        st.subheader("เปรียบเทียบ: บัตรดีกับผลรวมคะแนน")
+        sum_scores = votes_df['Votes'].sum() if (not votes_df.empty) else 0
+        diff = sum_scores - valid_ballots
+        percent = (sum_scores / valid_ballots * 100) if valid_ballots > 0 else None
+        c1, c2, c3 = st.columns(3)
+        c1.metric("บัตรดี", f"{valid_ballots:,}")
+        c2.metric("ผลรวมคะแนน", f"{int(sum_scores):,}", f"{int(diff):,}")
+        c3.metric("% (คะแนน / บัตรดี)", f"{percent:.2f}%" if percent is not None else "N/A")
+
         st.sidebar.markdown("---")
                 
     st.divider()
