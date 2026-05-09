@@ -57,7 +57,7 @@ class DatabaseManager:
                 except Exception:
                     sp.rollback()
                     location = session.query(Location).filter(Location.lid == lid).first()
-            return location
+            return location, is_outside
 
     def get_or_create_party(self, session, pid: int, name: str):
         with self.lock:
