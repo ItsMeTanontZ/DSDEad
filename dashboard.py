@@ -296,6 +296,35 @@ def get_no_show_voters(filters, election_type_filter, group_by_col="unit"):
     finally:
         session.close()
 
+
+@st.cache_data
+def get_unit_counts_by_subdistrict(filters, election_type_filter):
+    session = get_session()
+    try:
+        query = session.query(
+            Location.subdistrict.label("subdistrict"),
+            func.count(func.distinct(Location.unit)).label("unit_count")
+        ).select_from(ElectionStatistic).join(
+            Location, ElectionStatistic.location_key == Location.lid
+        )
+
+        for key, values in filters.items():
+            if values:
+                query = query.filter(getattr(Location, key).in_(values))
+
+        query = query.filter(ElectionStatistic.type == election_type_filter)
+        query = query.group_by(Location.subdistrict)
+
+        df = pd.DataFrame(query.all())
+        if df.empty:
+            return pd.DataFrame(columns=["subdistrict", "unit_count"])
+
+        df["subdistrict"] = df["subdistrict"].astype(str).str.strip()
+        df["unit_count"] = pd.to_numeric(df["unit_count"], errors="coerce").fillna(0)
+        return df
+    finally:
+        session.close()
+
 # UI Layout
 st.title("🗳️ สถิติการเลือกตั้ง")
 
@@ -574,13 +603,14 @@ if stats:
                 ).properties(height=300, width="container")
                 st.altair_chart(ballot_chart, use_container_width=True)
             with col2:
-                group_by = "unit" if selected_filters.get("subdistrict") else ("unit" if selected_filters.get("unit") else "subdistrict")
+                group_by = "unit" if selected_filters.get("subdistrict") else "subdistrict"
                 subdistrict_label = ", ".join(selected_filters.get("subdistrict", []))
                 title_suffix = f"ใน{subdistrict_label}" if subdistrict_label else ""
-                blank_df = get_blank_ballots(selected_filters, election_type, group_by)
+                chart_filters = {k: v for k, v in selected_filters.items() if not (group_by == "unit" and k == "unit")}
+                blank_df = get_blank_ballots(chart_filters, election_type, group_by)
 
                 if not blank_df.empty:
-                    display_df = blank_df.head(10).copy()
+                    display_df = blank_df.copy()
                     if group_by == "unit":
                         display_df["unit_order"] = pd.to_numeric(
                             display_df[group_by].astype(str).str.extract(r"(\d+)")[0],
@@ -589,24 +619,35 @@ if stats:
                         display_df = display_df.sort_values(["Votes", "unit_order", group_by], ascending=[False, True, True], kind="mergesort")
                         y_sort = display_df[group_by].tolist()
                     else:
+                        unit_counts_df = get_unit_counts_by_subdistrict(selected_filters, election_type)
+                        if not unit_counts_df.empty:
+                            display_df = display_df.merge(unit_counts_df, on="subdistrict", how="left")
+                            display_df["unit_count"] = pd.to_numeric(display_df["unit_count"], errors="coerce").fillna(0)
+                            display_df["Votes"] = display_df.apply(
+                                lambda r: (r["Votes"] / r["unit_count"]) if r["unit_count"] > 0 else r["Votes"],
+                                axis=1,
+                            )
+                        display_df["Votes"] = pd.to_numeric(display_df["Votes"], errors="coerce").fillna(0).round(2)
                         display_df = display_df.sort_values(["Votes", group_by], ascending=[False, True], kind="mergesort")
                         y_sort = "-x"
+                    display_df = display_df.head(10)
                     chart = alt.Chart(display_df).mark_bar().encode(
                         y=alt.Y(f"{group_by}:N", sort=y_sort, title=""),
-                        x=alt.X("Votes:Q", title=f"10 อันดับ{('หน่วย' if group_by == 'unit' else 'ตำบล')}{title_suffix}ที่มีจำนวนบัตรไม่ลงคะแนนมากสุด".replace("  ", " ").strip()),
+                        x=alt.X("Votes:Q", title=(f"10 อันดับ{('หน่วย' if group_by == 'unit' else 'ตำบล')}{title_suffix}ที่มีจำนวนบัตรไม่ลงคะแนนมากสุด".replace("  ", " ").strip() if group_by == "unit" else f"10 อันดับตำบล{title_suffix}ที่มีจำนวนบัตรไม่ลงคะแนนเฉลี่ยต่อหน่วยมากสุด".replace("  ", " ").strip())),
                         tooltip=[group_by, "Votes"]
                     ).properties(height=300, width="container").configure_axis(labelLimit=500)
                     st.altair_chart(chart, use_container_width=True)
                 else:
                     st.info("ไม่พบข้อมูลบัตรไม่ลงคะแนนจากที่กรอง")
             with col3:
-                group_by = "unit" if selected_filters.get("subdistrict") else ("unit" if selected_filters.get("unit") else "subdistrict")
+                group_by = "unit" if selected_filters.get("subdistrict") else "subdistrict"
                 subdistrict_label = ", ".join(selected_filters.get("subdistrict", []))
                 title_suffix = f"ใน{subdistrict_label}" if subdistrict_label else ""
-                no_show_df = get_no_show_voters(selected_filters, election_type, group_by)
+                chart_filters = {k: v for k, v in selected_filters.items() if not (group_by == "unit" and k == "unit")}
+                no_show_df = get_no_show_voters(chart_filters, election_type, group_by)
 
                 if not no_show_df.empty:
-                    display_df = no_show_df.head(10).copy()
+                    display_df = no_show_df.copy()
                     if group_by == "unit":
                         display_df["unit_order"] = pd.to_numeric(
                             display_df[group_by].astype(str).str.extract(r"(\d+)")[0],
@@ -615,11 +656,21 @@ if stats:
                         display_df = display_df.sort_values(["Votes", "unit_order", group_by], ascending=[False, True, True], kind="mergesort")
                         y_sort = display_df[group_by].tolist()
                     else:
+                        unit_counts_df = get_unit_counts_by_subdistrict(selected_filters, election_type)
+                        if not unit_counts_df.empty:
+                            display_df = display_df.merge(unit_counts_df, on="subdistrict", how="left")
+                            display_df["unit_count"] = pd.to_numeric(display_df["unit_count"], errors="coerce").fillna(0)
+                            display_df["Votes"] = display_df.apply(
+                                lambda r: (r["Votes"] / r["unit_count"]) if r["unit_count"] > 0 else r["Votes"],
+                                axis=1,
+                            )
+                        display_df["Votes"] = pd.to_numeric(display_df["Votes"], errors="coerce").fillna(0).round(2)
                         display_df = display_df.sort_values(["Votes", group_by], ascending=[False, True], kind="mergesort")
                         y_sort = "-x"
+                    display_df = display_df.head(10)
                     chart = alt.Chart(display_df).mark_bar().encode(
                         y=alt.Y(f"{group_by}:N", sort=y_sort, title=""),
-                        x=alt.X("Votes:Q", title=f"10 อันดับ{('หน่วย' if group_by == 'unit' else 'ตำบล')}{title_suffix}ที่ผู้ไม่มาใช้สิทธิ์มากสุด".replace("  ", " ").strip()),
+                        x=alt.X("Votes:Q", title=(f"10 อันดับ{('หน่วย' if group_by == 'unit' else 'ตำบล')}{title_suffix}ที่ผู้ไม่มาใช้สิทธิ์มากสุด".replace("  ", " ").strip() if group_by == "unit" else f"10 อันดับตำบล{title_suffix}ที่ผู้ไม่มาใช้สิทธิ์เฉลี่ยต่อหน่วยมากสุด".replace("  ", " ").strip())),
                         tooltip=[group_by, "Votes"]
                     ).properties(height=300, width="container").configure_axis(labelLimit=500)
                     st.altair_chart(chart, use_container_width=True)
