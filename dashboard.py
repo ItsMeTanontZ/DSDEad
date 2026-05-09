@@ -149,7 +149,7 @@ def get_map_data(filters, election_type_filter, map_mode):
             data_df = results[results['Votes'] == max_votes].drop_duplicates(['district', 'subdistrict'])
             debug_info["พรรคที่ชนะการโหวตs_count"] = len(data_df)
             
-        elif map_mode == "เตรียมบัตรเกิน/ขาด":
+        elif map_mode == "การเตรียมบัตรเกิน/ขาด":
             query = session.query(
                 Location.district,
                 Location.subdistrict,
@@ -469,7 +469,7 @@ election_type = st.sidebar.selectbox("รูปแบบการเลือก
 st.sidebar.markdown("---")
 if location_type_opt != "นอกเขตและนอกราชอาณาจักร":
     st.sidebar.header("การตั้งค่าแผนที่")
-    map_mode = st.sidebar.selectbox("รูปแบบแผนที่", ["พรรคที่ชนะการโหวต", "ผู้มาใช้สิทธิ์", "บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน", "เตรียมบัตรเกิน/ขาด"])
+    map_mode = st.sidebar.selectbox("รูปแบบแผนที่", ["พรรคที่ชนะการโหวต", "ผู้มาใช้สิทธิ์", "บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน", "การเตรียมบัตรเกิน/ขาด"])
     dot_scale = st.sidebar.slider("ตัวคูณขนาด", 1, 100, 20)
 
 # Fetch Data
@@ -777,7 +777,7 @@ if stats:
                             pickable=True,
                         )
                         tooltip_text = "{subdistrict}\nพรรคที่ชนะการโหวต: {Party}\nคะแนน: {Votes}"
-                    elif map_mode == "เตรียมบัตรเกิน/ขาด":
+                    elif map_mode == "การเตรียมบัตรเกิน/ขาด":
                         max_abs_diff = map_data["AbsDiff"].max()
                         if max_abs_diff > 0:
                             map_data["radius"] = ((map_data["AbsDiff"] / max_abs_diff) ** 0.5) * (dot_scale * 120)
