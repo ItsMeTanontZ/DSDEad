@@ -4,50 +4,40 @@ from .models import ElectionMetadata
 class FileParser:
     @staticmethod
     def parse_file_info(root: str, filename: str, base_dir: str) -> ElectionMetadata:
-        # Expected pattern: จังหวัด_เขตเลือกตั้ง_อำเภอ_ตำบล_หน่วย_type_filetype.csv
-        parts = filename.replace(".csv", "").split("_")
+        # Pattern: Province_Area_Detail_Type_Filetype.csv
+        name = filename.replace(".csv", "")
+        parts = name.split("_")
         
         if len(parts) < 5:
             return None
+        is_outside = "ล่วงหน้านอกเขตและนอกราชอาณาจักร" == parts[2]
+                
+        province = parts[0].replace("จังหวัด", "")
+        area = parts[1].replace("เขตเลือกตั้งที่", "").replace("เขตเลือกตั้ง", "").replace("เขต", "")   
+        election_type = parts[-2]
+        file_type = parts[-1]
         
-        # Default fallback values
-        province = "เชียงใหม่"
-        area = "10"
-        year = "2566"
-        
-        if len(parts) >= 7:
-            # จังหวัด_เขต_อำเภอ_ตำบล_หน่วย_type_filetype
-            province = parts[0].replace("จังหวัด", "")
-            area = parts[1].replace("เขตเลือกตั้งที่", "").replace("เขตเลือกตั้ง", "").replace("เขต", "")
-            district = parts[2].replace("อำเภอ", "")
-            subdistrict = parts[3].replace("ตำบล", "")
-            unit = parts[4].replace("หน่วยที่", "").replace("หน่วย", "")
-            election_type = parts[5]
-            file_type = parts[6]
-        elif len(parts) == 6:
-            # จังหวัด_เขต_อำเภอ_ตำบล_type_filetype
-            province = parts[0].replace("จังหวัด", "")
-            area = parts[1].replace("เขตเลือกตั้งที่", "").replace("เขตเลือกตั้ง", "").replace("เขต", "")
-            district = parts[2].replace("อำเภอ", "")
-            subdistrict = parts[3].replace("ตำบล", "")
-            unit = "1"
-            election_type = parts[4]
-            file_type = parts[5]
+        if is_outside:
+            print('yes')
+            district = ""
+            subdistrict = ""
+            unit = parts[-3].replace("ชุดที่", "")
         else:
-            # Fallback for 5 parts: อำเภอ_ตำบล_หน่วย_type_filetype
-            district = parts[0].replace("อำเภอ", "")
-            subdistrict = parts[1].replace("ตำบล", "")
-            unit = parts[2].replace("หน่วยที่", "").replace("หน่วย", "")
-            election_type = parts[3]
-            file_type = parts[4]
-
+            district = parts[2].replace("อำเภอ", "")
+            subdistrict = parts[3].replace("ตำบล", "").replace("เทศบาล", "")
+            unit = parts[4].replace("หน่วยที่", "")
+            
+        
         return ElectionMetadata(
-            district=district.strip(),
-            subdistrict=subdistrict.strip(),
-            unit=unit.strip(),
-            election_type=election_type.strip(),
-            file_type=file_type.strip(),
-            year=year,
-            province=province.strip(),
-            area=area.strip()
+            file_type = file_type.strip(),
+            election_type = election_type.strip(),
+            unit = unit.strip(),
+            subdistrict = subdistrict.strip(),
+            district = district.strip(),
+
+            location_type = "ล่วงหน้านอกเขตและนอกราชอาณาจักร" if is_outside else "ในประเทศ",
+            
+            area = area.strip(),
+            province = province.strip(),
+            year = "2566", # Default year
         )

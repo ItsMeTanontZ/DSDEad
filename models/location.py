@@ -9,8 +9,19 @@ class Location(Base):
     year = Column(String(60), nullable=False) # ปี
     province = Column(String(60), nullable=False) # จังหวัด
     area = Column(String(60), nullable=False)     # เขตเลือกตั้ง
-    district = Column(String(60), nullable=False) # อำเภอ
-    subdistrict = Column(String(60), nullable=False) # ตำบล(เทศบาล-ถ้าก็มี)
-    unit = Column(String(60), nullable=False)     # หน่วยที่
+    unit = Column(String(60), nullable=False)     # หน่วยที่ or ชุดที่ (สำหรับนอกเขต)
+    
+    # Single Table Inheritance discriminator
+    location_type = Column(String(50))
+
+    # Domestic-specific fields made nullable for STI
+    district = Column(String(60), nullable=True) # อำเภอ
+    subdistrict = Column(String(60), nullable=True) # ตำบล(เทศบาล-ถ้าก็มี)
+
+    __mapper_args__ = {
+        'polymorphic_on': location_type,
+        'polymorphic_identity': 'domestic'
+    }
+
     def __repr__(self):
-        return f"id: {self.lid}, year: {self.year}, province: {self.province}, area: {self.area}, district: {self.district}, subdistrict: {self.subdistrict}, unit: {self.unit}"
+        return f"id: {self.lid}, type: {self.location_type}, year: {self.year}, province: {self.province}, area: {self.area}"

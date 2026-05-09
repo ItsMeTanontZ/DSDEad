@@ -1,7 +1,7 @@
 import threading
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from models import Base, Location, Party, Candidate, ElectionStatistic, Voted, ProcessedFile
+from models import *
 from .models import ElectionMetadata
 
 class DatabaseManager:
@@ -17,23 +17,41 @@ class DatabaseManager:
         return self.SessionLocal()
 
     def get_or_create_location(self, session, meta: ElectionMetadata):
-        lid = f"{meta.year}-{meta.province}-{meta.area}-{meta.district}-{meta.subdistrict}-{meta.unit}"
+        # Infer if it's outside kingdom: empty district/subdistrict implies outside kingdom
+        is_outside = not meta.district and not meta.subdistrict
+        
+        # Consistent lid generation: only join parts that exist
+        parts = [meta.year, meta.province, meta.area]
+        if not is_outside:
+            parts.extend([meta.district, meta.subdistrict, meta.unit])
+        else:
+            parts.extend([meta.unit])  # For outside kingdom, unit is the last part before type/filetype
+        lid = "-".join([str(p) for p in parts if p])
         
         with self.lock:
+            # Polymorphic query
             location = session.query(Location).filter(Location.lid == lid).first()
             if not location:
-                # Use a savepoint to handle potential collisions without breaking the main transaction
                 sp = session.begin_nested()
                 try:
-                    location = Location(
-                        lid=lid,
-                        year=meta.year,
-                        province=meta.province,
-                        area=meta.area,
-                        district=meta.district,
-                        subdistrict=meta.subdistrict,
-                        unit=meta.unit
-                    )
+                    if is_outside:
+                        location = LocationOutsideKingdom(
+                            lid=lid,
+                            year=meta.year,
+                            province=meta.province,
+                            area=meta.area,
+                            unit=meta.unit
+                        )
+                    else:
+                        location = Location(
+                            lid=lid,
+                            year=meta.year,
+                            province=meta.province,
+                            area=meta.area,
+                            district=meta.district,
+                            subdistrict=meta.subdistrict,
+                            unit=meta.unit
+                        )
                     session.add(location)
                     session.flush()
                 except Exception:
