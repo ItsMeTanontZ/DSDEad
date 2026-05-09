@@ -3,7 +3,7 @@ from .location import Location
 
 class LocationOutsideKingdom(Location):
     __mapper_args__ = {
-        'polymorphic_identity': 'outside_kingdom'
+        'polymorphic_identity': 'นอกเขตและนอกราชอาณาจักร'
     }
     
     def __repr__(self):

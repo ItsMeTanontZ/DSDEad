@@ -44,7 +44,15 @@ def get_unique_values(field_name, current_filters):
             if values:
                 query = query.filter(getattr(Location, key).in_(values))
         results = [r[0] for r in query.all()]
-        return sorted([str(r) for r in results])
+        cleaned_results = []
+        for r in results:
+            if r is None:
+                continue
+            s = str(r).strip()
+            if not s or s.lower() == "nan":
+                continue
+            cleaned_results.append(s)
+        return sorted(cleaned_results)
     except:
         return []
     finally:
@@ -295,8 +303,8 @@ st.title("🗳️ สถิติการเลือกตั้ง")
 st.sidebar.header("ตัวกรอง")
 selected_filters = {}
 # location_type selector: 'all' means no filtering on location_type
-location_type_opt = st.sidebar.selectbox("Location Type", ["all", "domestic", "outside_kingdom"], index=0)
-if location_type_opt == "all":
+location_type_opt = st.sidebar.selectbox("ประเภทพื้นที่", ["ทั้งหมด", "ในเขต", "นอกเขตและนอกราชอาณาจักร"], index=0)
+if location_type_opt == "ทั้งหมด":
     selected_filters["location_type"] = []
 else:
     selected_filters["location_type"] = [location_type_opt]
@@ -317,7 +325,7 @@ provinces = get_unique_values("province", prov_filters)
 selected_filters["province"] = st.sidebar.multiselect("จังหวัด", provinces, placeholder="เลือก")
 
 # For domestic/all: show area (location) as the main location filter. For outside_kingdom: show unit + area.
-if location_type_opt == "all":
+if location_type_opt == "ทั้งหมด":
     unit_filters = prov_filters.copy()
     if selected_filters.get("province"):
         unit_filters["province"] = selected_filters["province"]
@@ -334,13 +342,13 @@ if location_type_opt == "all":
     selected_filters["area"] = []
     selected_filters["district"] = []
     selected_filters["subdistrict"] = []
-elif location_type_opt == "outside_kingdom":
+elif location_type_opt == "นอกเขตและนอกราชอาณาจักร":
     unit_filters = prov_filters.copy()
     if selected_filters.get("province"):
         unit_filters["province"] = selected_filters["province"]
     unit_filters["year"] = selected_filters.get("year") or []
     units = get_unique_values("unit", unit_filters)
-    selected_filters["unit"] = st.sidebar.multiselect("หน่วยเลือกตั้ง", units, placeholder="เลือก")
+    selected_filters["unit"] = st.sidebar.multiselect("ชุดที่", units, placeholder="เลือก")
 
     # also allow an area/location filter if available
     area_filters = prov_filters.copy()
@@ -351,8 +359,8 @@ elif location_type_opt == "outside_kingdom":
     selected_filters["area"] = []
     selected_filters["district"] = []
     selected_filters["subdistrict"] = []
-else:
-    # domestic or all: only year, province and area (location) filter
+elif location_type_opt == "ในเขต":
+    # domestic =: only year, province and area (location) filter
     area_filters = prov_filters.copy()
     if selected_filters.get("province"):
         area_filters["province"] = selected_filters["province"]
@@ -362,9 +370,9 @@ else:
     selected_filters["area"] = st.sidebar.multiselect("เขตเลือกตั้ง", areas, placeholder="เลือก")
 
     # keep other finer-grained filters empty to avoid accidental filtering
-    districts = get_unique_values("unit", {"year": selected_filters["year"], "province": selected_filters["province"], "area": selected_filters["area"]})
+    districts = get_unique_values("district", {"year": selected_filters["year"], "province": selected_filters["province"], "area": selected_filters["area"]})
     selected_filters["district"] = st.sidebar.multiselect("อำเภอ", districts, placeholder="เลือก")
-    subdistricts = get_unique_values("unit", {"year": selected_filters["year"], "province": selected_filters["province"], "area": selected_filters["area"], "district": selected_filters["district"]})
+    subdistricts = get_unique_values("subdistrict", {"year": selected_filters["year"], "province": selected_filters["province"], "area": selected_filters["area"], "district": selected_filters["district"]})
     selected_filters["subdistrict"] = st.sidebar.multiselect("ตำบล (เทศบาล)", subdistricts, placeholder="เลือก")
     units = get_unique_values("unit", {"year": selected_filters["year"], "province": selected_filters["province"], "area": selected_filters["area"], "district": selected_filters["district"], "subdistrict": selected_filters["subdistrict"]})
     selected_filters["unit"] = st.sidebar.multiselect("หน่วยเลือกตั้ง", units, placeholder="เลือก")
@@ -372,7 +380,7 @@ else:
 election_type = st.sidebar.selectbox("รูปแบบการเลือกตั้ง", ["แบบแบ่งเขต", "แบบบัญชีรายชื่อ"])
 
 st.sidebar.markdown("---")
-if location_type_opt != "outside_kingdom":
+if location_type_opt != "นอกเขตและนอกราชอาณาจักร":
     st.sidebar.header("การตั้งค่าแผนที่")
     map_mode = st.sidebar.selectbox("รูปแบบแผนที่", ["พรรคที่ชนะการโหวต", "ผู้มาใช้สิทธิ์", "บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน", "เตรียมบัตรเกิน/ขาด"])
     dot_scale = st.sidebar.slider("ตัวคูณขนาด", 1, 100, 20)
@@ -400,7 +408,7 @@ if stats:
 
     # Row 2: Geographic Visualization
     # Row 2: Geographic Visualization
-    if location_type_opt == "outside_kingdom":
+    if location_type_opt == "นอกเขตและนอกราชอาณาจักร":
         stats_tab = st.tabs(["สถิติ"])[0]
         with stats_tab:
             # only show statistics tab for outside_kingdom
@@ -420,6 +428,135 @@ if stats:
                 st.altair_chart(chart, use_container_width=True)
             else:
                 st.info("No voting data available.")
+
+            # Row 4: Ballot Distribution Chart
+            st.divider()
+            st.subheader("สถิติการเลือกตั้ง")
+            col1, col2 = st.columns([2,3])
+            with col1:
+                ballot_data = pd.DataFrame({
+                    "Type": ["บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"],
+                    "Count": [valid_ballots, invalid_ballots, blank_ballots]
+                })
+                ballot_chart = alt.Chart(ballot_data).mark_arc().encode(
+                    theta=alt.Theta("Count:Q", title="จำนวน"),
+                    color=alt.Color("Type:N", title="ประเภทบัตร"),
+                    tooltip=["Type", "Count"]
+                ).properties(height=300, width="container")
+                st.altair_chart(ballot_chart, use_container_width=True)
+            with col2:
+                # In outside_kingdom mode, always rank by unit and do not narrow by selected units.
+                group_by = "unit"
+                filters_for_blank = {k: v for k, v in selected_filters.items() if k != "unit"}
+                blank_df = get_blank_ballots(filters_for_blank, election_type, group_by)
+
+                if not blank_df.empty:
+                    display_df = blank_df.head(10).copy()
+                    if group_by == "unit":
+                        display_df["unit_order"] = pd.to_numeric(
+                            display_df[group_by].astype(str).str.extract(r"(\d+)")[0],
+                            errors="coerce"
+                        ).fillna(0)
+                        display_df = display_df.sort_values(["Votes", "unit_order", group_by], ascending=[False, True, True], kind="mergesort")
+                        y_sort = display_df[group_by].tolist()
+                    else:
+                        display_df = display_df.sort_values(["Votes", group_by], ascending=[False, True], kind="mergesort")
+                        y_sort = "-x"
+                    chart = alt.Chart(display_df).mark_bar().encode(
+                        y=alt.Y(f"{group_by}:N", sort=y_sort, title=""),
+                        x=alt.X("Votes:Q", title="จำนวนบัตรไม่ลงคะแนนของแต่ละชุด"),
+                        tooltip=[group_by, "Votes"]
+                    ).properties(height=300, width="container").configure_axis(labelLimit=500)
+                    st.altair_chart(chart, use_container_width=True)
+                else:
+                    st.info("ไม่พบข้อมูลบัตรไม่ลงคะแนนจากที่กรอง")
+    elif location_type_opt == "ในเขต":
+        tab1, tab2 = st.tabs(["แผนที่", "สถิติ"])
+
+        with tab1: 
+            st.subheader(f"แผนที่แสดงข้อมูล{map_mode}ในเขต")
+            map_data, debug = get_map_data(selected_filters, election_type, map_mode)
+            
+            if not map_data.empty:
+                try:
+                    if map_mode == "พรรคที่ชนะการโหวต":
+                        map_data["icon"] = map_data["icon_data"].apply(lambda x: {
+                            "url": x, "width": 128, "height": 128, "anchorY": 128
+                        })
+                        layer = pdk.Layer(
+                            "IconLayer", map_data, 
+                            get_icon="icon",
+                            get_size=dot_scale, 
+                            get_position=["lon", "lat"], 
+                            pickable=True,
+                        )
+                        tooltip_text = "{subdistrict}\nพรรคที่ชนะการโหวต: {Party}\nคะแนน: {Votes}"
+                    elif map_mode == "การเตรียมบัตรเกิน/ขาด":
+                        max_abs_diff = map_data["AbsDiff"].max()
+                        if max_abs_diff > 0:
+                            map_data["radius"] = ((map_data["AbsDiff"] / max_abs_diff) ** 0.5) * (dot_scale * 120)
+                        else:
+                            map_data["radius"] = dot_scale * 20
+                        map_data["color"] = map_data["Diff"].apply(
+                            lambda x: [0, 170, 0, 180] if x > 0 else ([220, 30, 30, 180] if x < 0 else [128, 128, 128, 160])
+                        )
+                        layer = pdk.Layer(
+                            "ScatterplotLayer",
+                            map_data,
+                            get_position=["lon", "lat"],
+                            get_radius="radius",
+                            radius_min_pixels=4,
+                            radius_max_pixels=60,
+                            get_fill_color="color",
+                            pickable=True,
+                        )
+                        tooltip_text = "{subdistrict}\nเตรียมบัตรไว้: {prepared_ballots}\nผู้มีสิทธิ์เลือกตั้ง: {total_voters}\n{OutcomeText} ใบ"
+                    else:
+                        map_data["radius"] = map_data["Value"] * (dot_scale/20)
+                        layer = pdk.Layer(
+                            "ScatterplotLayer",
+                            map_data,
+                            get_position=["lon", "lat"],
+                            get_radius="radius",
+                            radius_min_pixels=3,
+                            radius_max_pixels=100,
+                            get_fill_color=[255, 0, 0, 160] if map_mode == "บัตรเสีย" else [0, 128, 255, 160],
+                            pickable=True,
+                        )
+                        tooltip_text = "{subdistrict}\n{Value} counts"
+
+                    view_state = pdk.ViewState(
+                        latitude=map_data["lat"].mean(),
+                        longitude=map_data["lon"].mean(),
+                        zoom=9, pitch=0,
+                    )
+                    
+                    st.pydeck_chart(pdk.Deck(
+                        layers=[layer],
+                        initial_view_state=view_state,
+                        tooltip={"text": tooltip_text}
+                    ))
+                except Exception as e:
+                    st.error(f"Error rendering map: {e}")
+            else:
+                st.info("ไม่พบข้อมูลในแผนที่จากที่กรอง")
+        with tab2:
+            # Row 3: Top 10 Chart
+            if not votes_df.empty:
+                chart_label = "Party" if election_type == "แบบบัญชีรายชื่อ" else "Candidate"
+                if election_type == "แบบบัญชีรายชื่อ":
+                    st.subheader(f"10 อันดับพรรคที่คะแนนมากที่สุด")
+                else:
+                    st.subheader(f"10 อันดับ สส ที่คะแนนมากที่สุด")
+                top_10 = votes_df.head(10).copy()
+                chart = alt.Chart(top_10).mark_bar().encode(
+                    y=alt.Y(f"{chart_label}:N", sort="-x", title=""),
+                    x=alt.X("Votes:Q", title="คะแนนที่ได้รับ"),
+                    tooltip=[chart_label, "Votes"]
+                ).properties(height=300, width="container").configure_axis(labelLimit=500)
+                st.altair_chart(chart, use_container_width=True)
+            else:
+                st.info("ไม่พบข้อมูลการลงคะแนน")
 
             # Row 4: Ballot Distribution Chart
             st.divider()
@@ -487,12 +624,13 @@ if stats:
                     ).properties(height=300, width="container").configure_axis(labelLimit=500)
                     st.altair_chart(chart, use_container_width=True)
                 else:
-                    st.info("ไม่พบข้อมูลผู้ไม่มาใช้เสียงจากที่กรอง")
+                    st.info("ไม่พบข้อมูลผู้ไม่มาใช้เสียงจากที่กรอง")    
+        st.sidebar.markdown("---")
     else:
         tab1, tab2 = st.tabs(["แผนที่", "สถิติ"])
 
         with tab1: 
-            st.subheader(f"แผนที่แสดงข้อมูล{map_mode}")
+            st.subheader(f"แผนที่แสดงข้อมูล{map_mode}ในเขต")
             map_data, debug = get_map_data(selected_filters, election_type, map_mode)
             
             if not map_data.empty:
@@ -557,7 +695,7 @@ if stats:
                 except Exception as e:
                     st.error(f"Error rendering map: {e}")
             else:
-                st.info("No map data available. Check the Debug expander below for details.")
+                st.info("ไม่พบข้อมูลในแผนที่จากที่กรอง")
         with tab2:
             # Row 3: Top 10 Chart
             if not votes_df.empty:
@@ -579,73 +717,21 @@ if stats:
             # Row 4: Ballot Distribution Chart
             st.divider()
             st.subheader("สถิติการเลือกตั้ง")
-            col1, col2, col3 = st.columns([3,5,5])
-            with col1:
-                ballot_data = pd.DataFrame({
-                    "Type": ["บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"],
-                    "Count": [valid_ballots, invalid_ballots, blank_ballots]
-                })
-                ballot_chart = alt.Chart(ballot_data).mark_arc().encode(
-                    theta=alt.Theta("Count:Q", title="จำนวน"),
-                    color=alt.Color("Type:N", title="ประเภทบัตร"),
-                    tooltip=["Type", "Count"]
-                ).properties(height=300, width="container")
-                st.altair_chart(ballot_chart, use_container_width=True)
-            with col2:
-                group_by = "unit" if selected_filters.get("subdistrict") else ("unit" if selected_filters.get("unit") else "subdistrict")
-                subdistrict_label = ", ".join(selected_filters.get("subdistrict", []))
-                title_suffix = f"ใน{subdistrict_label}" if subdistrict_label else ""
-                blank_df = get_blank_ballots(selected_filters, election_type, group_by)
-
-                if not blank_df.empty:
-                    display_df = blank_df.head(10).copy()
-                    if group_by == "unit":
-                        display_df["unit_order"] = pd.to_numeric(
-                            display_df[group_by].astype(str).str.extract(r"(\d+)")[0],
-                            errors="coerce"
-                        ).fillna(0)
-                        display_df = display_df.sort_values(["Votes", "unit_order", group_by], ascending=[False, True, True], kind="mergesort")
-                        y_sort = display_df[group_by].tolist()
-                    else:
-                        display_df = display_df.sort_values(["Votes", group_by], ascending=[False, True], kind="mergesort")
-                        y_sort = "-x"
-                    chart = alt.Chart(display_df).mark_bar().encode(
-                        y=alt.Y(f"{group_by}:N", sort=y_sort, title=""),
-                        x=alt.X("Votes:Q", title=f"10 อันดับ{('หน่วย' if group_by == 'unit' else 'ตำบล')}{title_suffix}ที่มีจำนวนบัตรไม่ลงคะแนนมากสุด".replace("  ", " ").strip()),
-                        tooltip=[group_by, "Votes"]
-                    ).properties(height=300, width="container").configure_axis(labelLimit=500)
-                    st.altair_chart(chart, use_container_width=True)
-                else:
-                    st.info("ไม่พบข้อมูลบัตรไม่ลงคะแนนจากที่กรอง")
-            with col3:
-                group_by = "unit" if selected_filters.get("subdistrict") else ("unit" if selected_filters.get("unit") else "subdistrict")
-                subdistrict_label = ", ".join(selected_filters.get("subdistrict", []))
-                title_suffix = f"ใน{subdistrict_label}" if subdistrict_label else ""
-                no_show_df = get_no_show_voters(selected_filters, election_type, group_by)
-
-                if not no_show_df.empty:
-                    display_df = no_show_df.head(10).copy()
-                    if group_by == "unit":
-                        display_df["unit_order"] = pd.to_numeric(
-                            display_df[group_by].astype(str).str.extract(r"(\d+)")[0],
-                            errors="coerce"
-                        ).fillna(0)
-                        display_df = display_df.sort_values(["Votes", "unit_order", group_by], ascending=[False, True, True], kind="mergesort")
-                        y_sort = display_df[group_by].tolist()
-                    else:
-                        display_df = display_df.sort_values(["Votes", group_by], ascending=[False, True], kind="mergesort")
-                        y_sort = "-x"
-                    chart = alt.Chart(display_df).mark_bar().encode(
-                        y=alt.Y(f"{group_by}:N", sort=y_sort, title=""),
-                        x=alt.X("Votes:Q", title=f"10 อันดับ{('หน่วย' if group_by == 'unit' else 'ตำบล')}{title_suffix}ที่ผู้ไม่มาใช้สิทธิ์มากสุด".replace("  ", " ").strip()),
-                        tooltip=[group_by, "Votes"]
-                    ).properties(height=300, width="container").configure_axis(labelLimit=500)
-                    st.altair_chart(chart, use_container_width=True)
-                else:
-                    st.info("ไม่พบข้อมูลผู้ไม่มาใช้เสียงจากที่กรอง")
+            ballot_data = pd.DataFrame({
+                "Type": ["บัตรดี", "บัตรเสีย", "ไม่ลงคะแนน"],
+                "Count": [valid_ballots, invalid_ballots, blank_ballots]
+            })
+            ballot_chart = alt.Chart(ballot_data).mark_arc().encode(
+                theta=alt.Theta("Count:Q", title="จำนวน"),
+                color=alt.Color("Type:N", title="ประเภทบัตร"),
+                tooltip=["Type", "Count"]
+            ).properties(height=300, width="container")
+            st.altair_chart(ballot_chart, use_container_width=True)
+        st.sidebar.markdown("---")
+                
+    st.divider()
 
     # Row 5: Detailed Data
-    st.divider()
     st.subheader("ตารางแสดงอันดับ")
     if not votes_df.empty:
         votes_df_display = votes_df.copy()
@@ -658,7 +744,6 @@ else:
     st.info(stats.total_voters)
 
 # Footer
-st.sidebar.markdown("---")
 st.sidebar.info("""ชุดข้อมูลนี้ถูกจัดทำขึ้นผ่านกระบวนการ OCR พร้อมการตรวจสอบความถูกต้องแบบ manual เพื่อเพิ่มความแม่นยำก่อนเผยแพร่ ทั้งนี้ เราไม่มีการแก้ไข ดัดแปลง หรือบิดเบือนข้อมูลการเลือกตั้งไม่ว่ากรณีใด ๆ
 
 โครงการนี้เป็น Final Project ของรายวิชา Data Science and Data Engineering รหัสวิชา 2110446 ไม่มีความเกี่ยวข้องกับธุรกิจ พรรคการเมือง หรือองค์กรภาคประชาชนใด ๆ ทั้งสิ้น

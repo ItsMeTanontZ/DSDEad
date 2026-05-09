@@ -20,7 +20,7 @@ class Location(Base):
 
     __mapper_args__ = {
         'polymorphic_on': location_type,
-        'polymorphic_identity': 'domestic'
+        'polymorphic_identity': 'ในเขต'
     }
 
     def __repr__(self):
