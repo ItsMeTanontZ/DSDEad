@@ -24,7 +24,7 @@ class FileParser:
             unit = parts[-3].replace("ชุดที่", "")
         else:
             district = parts[2].replace("อำเภอ", "")
-            subdistrict = parts[3].replace("ตำบล", "").replace("เทศบาล", "")
+            subdistrict = parts[3].replace("ตำบล", "")
             unit = parts[4].replace("หน่วยที่", "")
             
         
