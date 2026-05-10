@@ -1,6 +1,6 @@
 # Data Setup
 
-1. Download the data from this Google Drive folder:
+1. Download the raw PDF data from this Google Drive folder:
 	https://drive.google.com/drive/folders/1koDp6abqLT2f-DARW--qWqO2onlTCWIy
 
 2. Extract the downloaded files so the directory structure looks something like this:
@@ -51,11 +51,11 @@ Usage Instructions
 
   Configuration
   
-  The script automatically reads your settings from config.py and .env. Ensure your .env contains:
+  Ensure your .env contains:
   
    * DB_URL: Your PostgreSQL connection string.
   
    * DATA_DIR: The path to your res/csv folder.
 
-  Your database is now ready to handle large-scale imports with built-in protection against duplicates and an easy way to manage specific
-  files.
+   * DATAPIC_DIR: The path to your party profile picture
+
