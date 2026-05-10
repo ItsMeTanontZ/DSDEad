@@ -21,9 +21,9 @@ Usage Instructions
 
   using this command ".venv/Scripts/activate"
 
-  run "docker compose up -d --build"
+	docker compose up -d --build
   
-  run "pip install -r requirements.txt"
+  	pip install -r requirements.txt
   
   then
   
@@ -31,7 +31,7 @@ Usage Instructions
 
   This will create all the necessary tables in your PostgreSQL instance.
   
-   1 python seed.py --init
+	python seed.py --init
 
   Seed new data:
 
@@ -39,7 +39,7 @@ Usage Instructions
   
   Run this whenever you add new CSV files to your directory. It will only process the new ones.
   
-   1 python seed.py --workers 1
+	python seed.py --workers 1
 
   !!!only use --workers 1 if you put more than that it will freeze idk why I'm so sorry TT!!! 
 
@@ -47,7 +47,7 @@ Usage Instructions
 
   If you need to remove the data from a specific file (e.g., to re-import it after a correction):
 
-   1 python seed.py --delete "อำเภออมก๋อย_ตำบลนาเกียน_หน่วยที่1_แบบบัญชีรายชื่อ_ผลคะแนน.csv"
+	python seed.py --delete "อำเภออมก๋อย_ตำบลนาเกียน_หน่วยที่1_แบบบัญชีรายชื่อ_ผลคะแนน.csv"
 
   Configuration
   
