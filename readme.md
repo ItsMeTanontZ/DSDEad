@@ -1,9 +1,20 @@
 # Data Setup
 
 1. Download the raw PDF data from this Google Drive folder:
+
+สำหรับเชียงใหม่เขต 10: 
+
 	https://drive.google.com/drive/folders/1koDp6abqLT2f-DARW--qWqO2onlTCWIy
 
-2. Extract the downloaded files so the directory structure looks something like this:
+สำหรับเชียงใหม่เขต 9 อำเภอแม่วาง ตำบลดอนเปา: 
+
+	https://drive.google.com/drive/folders/17LhAE-bKGNI9ldNZYNqrkwpa7s9OtUew?usp=sharing
+
+สำหรับเชียงใหม่เขต 9 อำเภอแม่วาง ตำบลทุ่งปิ๊: 
+
+	https://drive.google.com/drive/folders/11SeeytO0C9Uvm63_in_jsAxix9Q-rpJk?usp=sharing
+
+3. Extract the downloaded files so the directory structure looks something like this:
 
 ```text
 res/
