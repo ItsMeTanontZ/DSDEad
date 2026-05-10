@@ -66,7 +66,14 @@ Usage Instructions
   
    * DB_URL: Your PostgreSQL connection string.
   
-   * DATA_DIR: The path to your res/csv folder.
+   * DATA_DIR: The path to your res/ folder which contain all .csv from ocr.
 
    * DATAPIC_DIR: The path to your party profile picture
 
+  The csv file's name format for 1 unit should look like this:
+  
+  	จังหวัด_เขตx_อำเภอ_ตำบล_หน่วย_แบบบัญชีรายชื่อ_check.csv
+	จังหวัด_เขตx_อำเภอ_ตำบล_หน่วย_แบบบัญชีรายชื่อ_ผลคะแนน.csv
+	จังหวัด_เขตx_อำเภอ_ตำบล_หน่วย_แบบแบ่งเขต_check.csv
+	จังหวัด_เขตx_อำเภอ_ตำบล_หน่วย_แบบแบ่งเขต_ผลคะแนน.csv
+  
