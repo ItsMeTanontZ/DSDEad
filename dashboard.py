@@ -922,15 +922,15 @@ if stats:
                 tooltip=["Type", "Count"]
             ).properties(height=300, width="container")
             st.altair_chart(ballot_chart, use_container_width=True)
-        # Comparison: valid_ballots vs sum of reported scores (votes)
-        st.subheader("เปรียบเทียบ: บัตรดีกับผลรวมคะแนน")
-        sum_scores = votes_df['Votes'].sum() if (not votes_df.empty) else 0
-        diff = sum_scores - valid_ballots
-        percent = (sum_scores / valid_ballots * 100) if valid_ballots > 0 else None
-        c1, c2, c3 = st.columns(3)
-        c1.metric("บัตรดี", f"{valid_ballots:,}")
-        c2.metric("ผลรวมคะแนน", f"{int(sum_scores):,}", f"{int(diff):,}")
-        c3.metric("% (คะแนน / บัตรดี)", f"{percent:.2f}%" if percent is not None else "N/A")
+            # Comparison: valid_ballots vs sum of reported scores (votes)
+            st.subheader("เปรียบเทียบ: บัตรดีกับผลรวมคะแนน")
+            sum_scores = votes_df['Votes'].sum() if (not votes_df.empty) else 0
+            diff = sum_scores - valid_ballots
+            percent = (sum_scores / valid_ballots * 100) if valid_ballots > 0 else None
+            c1, c2, c3 = st.columns(3)
+            c1.metric("บัตรดี", f"{valid_ballots:,}")
+            c2.metric("ผลรวมคะแนน", f"{int(sum_scores):,}", f"{int(diff):,}")
+            c3.metric("% (คะแนน / บัตรดี)", f"{percent:.2f}%" if percent is not None else "N/A")
 
         st.sidebar.markdown("---")
                 
