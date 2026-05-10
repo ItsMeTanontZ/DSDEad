@@ -23,20 +23,28 @@ class DataProcessor:
 
     def process(self, session, file_path: str, meta: ElectionMetadata, filename: str):
         df = pd.read_csv(file_path, encoding='utf-8-sig')
-        location = self.db.get_or_create_location(session, meta)
+        location, location_type = self.db.get_or_create_location(session, meta)
         
         if meta.file_type == "check":
-            self._process_check(session, df, meta, location, filename)
+            self._process_check(session, df, meta, location, filename, location_type)
         elif meta.file_type == "ผลคะแนน":
             self._process_scores(session, df, meta, location, filename)
 
-    def _process_check(self, session, df, meta, location, filename):
+    def _process_check(self, session, df, meta, location, filename, location_type):
         data = dict(zip(df['รายการ'], df['ตัวเลข']))
+        if location_type:
+            voter_turnout = self._safe_int(data.get('บัตรเลือกตั้งที่ใช้', 0))
+            total_voters = voter_turnout
+        else:
+            voter_turnout = self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งที่มาแสดงตน', data.get('จำนวนผู้มาแสดงตน', 0)))
+            if voter_turnout == 0:
+                voter_turnout = self._safe_int(data.get('บัตรเลือกตั้งที่ใช้', 0))
+            total_voters = self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งตามบัญชีรายชื่อผู้มีสิทธิเลือกตั้ง', data.get('จำนวนผู้มีสิทธิเลือกตั้ง', 0)))
         stat = ElectionStatistic(
             location_key=location.lid,
             type=meta.election_type,
-            total_voters=self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งตามบัญชีรายชื่อผู้มีสิทธิเลือกตั้ง', data.get('จำนวนผู้มีสิทธิเลือกตั้ง', 0))),
-            voters_turnout=self._safe_int(data.get('จำนวนผู้มีสิทธิเลือกตั้งที่มาแสดงตน', data.get('จำนวนผู้มาแสดงตน', 0))),
+            total_voters=total_voters,
+            voters_turnout=voter_turnout,
             valid_ballots=self._safe_int(data.get('บัตรดี', 0)),
             invalid_ballots=self._safe_int(data.get('บัตรเสีย', 0)),
             blank_ballots=self._safe_int(data.get('บัตรที่ไม่เลือกบัญชีรายชื่อของพรรคการเมืองใด', 

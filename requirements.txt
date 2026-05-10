@@ -2,3 +2,7 @@ sqlalchemy
 pandas 
 psycopg2-binary
 dotenv
+streamlit
+openpyxl
+pydeck
+protobuf==5.29.5

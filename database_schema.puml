@@ -1,0 +1,76 @@
+@startuml
+!theme plain
+hide circle
+skinparam linetype ortho
+
+entity "Location" as Location {
+  * lid : String(120) <<PK>>
+  --
+  year : String(60)
+  province : String(60)
+  area : String(60)
+  unit : String(60)
+  location_type : String(50) <<Discriminator>>
+  district : String(60) <<Nullable>>
+  subdistrict : String(60) <<Nullable>>
+}
+
+note right of Location
+  <b>STI Discriminators:</b>
+  * ในเขต (Domestic)
+  * นอกเขตและนอกราชอาณาจักร (Outside Kingdom)
+end note
+
+entity "Party" as Party {
+  * pid : Integer <<PK>>
+  --
+  name : String(60)
+}
+
+entity "Candidate" as Candidate {
+  * cid : UUID <<PK>>
+  --
+  candidate_number : Integer
+  name : String(60)
+  party_number : Integer <<FK>>
+}
+
+entity "ElectionStatistic" as ElectionStatistic {
+  * id : Integer <<PK>>
+  --
+  location_key : String(120) <<FK>>
+  type : String(50)
+  total_voters : Integer
+  voters_turnout : Integer
+  valid_ballots : Integer
+  invalid_ballots : Integer
+  blank_ballots : Integer
+  remaining_ballots : Integer
+  source_file : String(255)
+}
+
+entity "Voted" as Voted {
+  * vid : Integer <<PK>>
+  --
+  location_key : String(120) <<FK>>
+  election_type : String(50)
+  candidate_key : UUID <<FK, Nullable>>
+  party_key : Integer <<FK, Nullable>>
+  votes_received : Integer
+  source_file : String(255)
+}
+
+entity "ProcessedFile" as ProcessedFile {
+  * filename : String(255) <<PK>>
+  --
+  processed_at : DateTime
+}
+
+' Relationships
+Party ||--o{ Candidate : "nominates"
+Candidate ||--o{ Voted : "receives votes"
+Party ||--o{ Voted : "receives list votes"
+Location ||--o{ ElectionStatistic : "has stats"
+Location ||--o{ Voted : "hosts voting"
+
+@enduml

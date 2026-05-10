@@ -2,14 +2,18 @@ from dataclasses import dataclass
 
 @dataclass
 class ElectionMetadata:
-    district: str
-    subdistrict: str
-    unit: str
-    election_type: str
     file_type: str
-    year: str
-    province: str
+    election_type: str
+    unit: str
+    subdistrict: str
+    district: str
+
+    location_type: str
+
     area: str
+    province: str
+    year: str
+
 
 @dataclass
 class ProcessingError:
